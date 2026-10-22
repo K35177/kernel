@@ -1,0 +1,43 @@
+[Unit]
+Description=kernel verified online SQLite backup
+RequiresMountsFor=/opt/kernel /var/lib/kernel /var/backups/kernel
+ConditionPathExists=/var/lib/kernel/kernel.sqlite3
+
+[Service]
+Type=oneshot
+User=kernel
+Group=kernel
+WorkingDirectory=/opt/kernel/current
+UMask=0077
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/kernel/current/.venv/bin/python -B -m infra.sqlite_backup backup --source /var/lib/kernel/kernel.sqlite3 --destination /var/backups/kernel
+TimeoutStartSec=300
+Nice=10
+IOSchedulingClass=idle
+MemoryMax=384M
+TasksMax=32
+LimitCORE=0
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/kernel /var/backups/kernel
+ProtectClock=yes
+ProtectHostname=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX
+LockPersonality=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+StandardOutput=journal
+StandardError=journal
+LogNamespace=kernel
+SyslogIdentifier=kernel-backup
+LogRateLimitIntervalSec=30
+LogRateLimitBurst=100

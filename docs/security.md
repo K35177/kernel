@@ -59,6 +59,12 @@ sandboxing, no Linux capabilities, and a dedicated writable state directory.
 Caddy exposes only the built frontend and API route. It blocks common source,
 configuration, and database paths before the SPA fallback.
 
+The backup example runs without network access or Linux capabilities. It
+rejects permissive paths, symlinked inputs, hardlinked databases, concurrent
+runs, integrity failures, and foreign-key violations. Completed snapshots and
+their manifests are private files; their hashes prove file identity, not
+correctness or recoverability. Restore exercises remain mandatory.
+
 ## Known boundaries
 
 - SQLite is appropriate for the current single-host deployment, not horizontal
@@ -67,5 +73,6 @@ configuration, and database paths before the SPA fallback.
   BotFather before cleaning history.
 - Secret scanning reduces accidental exposure but does not prove that a system
   is free of sensitive business data.
+- The example backup timer does not implement retention or off-host copies.
 - The infrastructure examples still require host-specific review, backups, and
   rollback planning.

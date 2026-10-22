@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the kernel SQLite backup every day
+
+[Timer]
+OnCalendar=*-*-* 03:00:00 UTC
+RandomizedDelaySec=30m
+Persistent=true
+Unit=kernel-backup.service
+
+[Install]
+WantedBy=timers.target

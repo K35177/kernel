@@ -14,6 +14,7 @@ The included examples assume:
 /etc/kernel/production-approved  explicit API start gate
 /etc/kernel/polling-approved     explicit bot polling gate
 /var/lib/kernel/                 private SQLite state
+/var/backups/kernel/             private verified snapshots
 /var/www/kernel/current/         built frontend
 ```
 
@@ -77,6 +78,12 @@ empty capability set, and filesystem/kernel protections.
 Create the approval files only after configuration, database backup, ownership,
 and paths have been verified. Enable the API first. Enable bot polling only
 after proving that no other bot instance is polling the same token.
+
+The optional backup service and timer require a pre-created mode `0700`
+destination owned by the service account. Install the journal namespace
+configuration before units that declare `LogNamespace=kernel`. Validate all
+unit files with `systemd-analyze verify` on the target distribution before
+enabling them.
 
 ## Caddy
 

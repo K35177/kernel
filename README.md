@@ -68,7 +68,8 @@ kernel/               shared configuration, auth, access, storage, and bot logic
 frontend/             React Mini App and frontend tests
 tests/                backend and Telegram integration tests with fake sessions
 infra/caddy/           reviewed reverse-proxy example
-infra/systemd/         reviewed service examples
+infra/systemd/         reviewed service, backup, and journal examples
+infra/sqlite_backup.py consistent online SQLite backup helper
 docs/                  architecture, deployment, security, and operations
 bot.py                 aiogram entry point
 ```
@@ -133,8 +134,8 @@ npm run build
 
 The API binds to loopback and is designed to sit behind HTTPS. The examples in
 `infra/` use a dedicated unprivileged user, a protected environment file,
-systemd filesystem restrictions, Caddy path guards, and an explicit approval
-gate before either service can start.
+systemd filesystem restrictions, Caddy path guards, an explicit approval gate,
+and verified online SQLite snapshots.
 
 They intentionally contain no host, IP address, SSH target, release SHA, or
 automatic production action. See [Deployment](docs/deployment.md) and

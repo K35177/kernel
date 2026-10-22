@@ -21,13 +21,73 @@ and error types rather than request bodies or Telegram payloads.
 
 ## SQLite backups
 
-Use SQLite's online backup mechanism while either service may be running. Store
-the result outside the release tree with mode `0600`. Verify the copy with
-`PRAGMA integrity_check`, record its schema version and checksum privately, and
-test restore procedures on a separate path.
+Use SQLite's online backup mechanism while either service may be running. The
+reference helper in [`infra/sqlite_backup.py`](../infra/sqlite_backup.py)
+captures committed WAL transactions, verifies integrity and foreign keys, and
+publishes a private snapshot directory only after its database and manifest
+have been synchronized.
 
 Never copy only the main database file from an active WAL database. Never place
 database backups in Git or a web root.
+
+The example `kernel-backup.service` runs as the same unprivileged account as the
+application, has no network access or Linux capabilities, and may write only to
+the state and backup directories. Create `/var/backups/kernel` in advance with
+owner `kernel:kernel` and mode `0700`. Adapt all paths before installing the
+example.
+
+The timer is persistent: a missed run may execute after the host starts. It
+does not prune snapshots. Monitor backup age and available space, and define a
+retention policy appropriate for the deployment before enabling the timer.
+
+### Restore exercise
+
+A successful backup job is evidence that a snapshot was created, not that the
+system can be recovered. Periodically test restoration with synthetic or
+appropriately protected data on a separate path:
+
+1. Select a snapshot and run `python -m infra.sqlite_backup verify SNAPSHOT`.
+2. Copy its database to an isolated location; never test against the live path.
+3. Start a disposable application instance against that copy.
+4. Exercise authentication, access status, message routing, and migrations
+   without contacting the production Telegram bot.
+5. Record the test time, snapshot age, schema version, and result without user
+   identifiers or message content.
+
+For an actual restore, stop every database writer and preserve the failed main
+database plus any WAL/SHM files. Verify the selected snapshot again, copy it to
+a temporary file on the same filesystem as the live database, set the expected
+owner and mode, call `fsync`, and use an atomic rename. Start and validate the
+API before starting the single Telegram polling process. Keep the preserved
+files until application and data checks pass.
+
+## systemd reliability and hardening
+
+The API and bot examples combine `Restart=on-failure` with a bounded start rate.
+Configuration failures exit with status 2 and do not loop. Bot lock contention
+uses status 75 and also suppresses restart, which prevents two local pollers
+from repeatedly competing for the same token.
+
+Resource controls bound memory, tasks, file descriptors, and core dumps.
+Filesystem protections leave only the application state writable. Empty
+capability and ambient-capability sets, restricted address families, private
+devices, and `NoNewPrivileges` reduce the impact of a compromised process.
+These settings are examples: validate them against the target systemd version
+and application workload before installation.
+
+The services use `LogNamespace=kernel`. Install `journald@kernel.conf` as
+`/etc/systemd/journald@kernel.conf` before starting those units, then query the
+isolated journal narrowly:
+
+```bash
+journalctl --namespace=kernel -u kernel-api.service --since today --no-pager
+journalctl --namespace=kernel -u kernel-backup.service -n 50 --no-pager
+```
+
+The example namespace has explicit size, free-space, retention, and rate
+limits. Journal isolation does not make log content safe; tokens, bearer
+headers, Telegram payloads, message bodies, and raw database rows must still
+never be logged.
 
 ## Updates
 

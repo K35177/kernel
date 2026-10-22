@@ -4,6 +4,9 @@ Wants=network-online.target
 After=network-online.target
 ConditionPathExists=/etc/kernel/production-approved
 ConditionPathExists=/etc/kernel/polling-approved
+RequiresMountsFor=/var/lib/kernel
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -17,12 +20,18 @@ StateDirectory=kernel
 StateDirectoryMode=0700
 RuntimeDirectory=kernel
 RuntimeDirectoryMode=0700
-ExecStart=/usr/bin/flock --nonblock /run/kernel/bot-polling.lock /opt/kernel/current/.venv/bin/python -u /opt/kernel/current/bot.py
+ExecStart=/usr/bin/flock --nonblock --conflict-exit-code 75 /run/kernel/bot-polling.lock /opt/kernel/current/.venv/bin/python -u /opt/kernel/current/bot.py
 Restart=on-failure
 RestartSec=10
-RestartPreventExitStatus=2
+RestartPreventExitStatus=2 75
 TimeoutStopSec=60
 KillMode=control-group
+MemoryHigh=384M
+MemoryMax=512M
+TasksMax=128
+LimitNOFILE=4096
+LimitCORE=0
+OOMPolicy=stop
 NoNewPrivileges=yes
 PrivateTmp=yes
 PrivateDevices=yes
@@ -39,7 +48,10 @@ CapabilityBoundingSet=
 AmbientCapabilities=
 StandardOutput=journal
 StandardError=journal
+LogNamespace=kernel
 SyslogIdentifier=kernel-bot
+LogRateLimitIntervalSec=30
+LogRateLimitBurst=100
 
 [Install]
 WantedBy=multi-user.target
