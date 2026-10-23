@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from contextlib import redirect_stderr
+from contextlib import closing, redirect_stderr
 import io
 import json
 import os
@@ -60,7 +60,7 @@ class SQLiteBackupTests(unittest.TestCase):
         self.assertEqual(stat_mode(result.path / sqlite_backup.DATABASE_NAME), 0o600)
         self.assertEqual(stat_mode(result.path / sqlite_backup.MANIFEST_NAME), 0o600)
         self.assertFalse(any(path.name.startswith(".partial-") for path in self.destination.iterdir()))
-        with sqlite3.connect(result.path / sqlite_backup.DATABASE_NAME) as backup:
+        with closing(sqlite3.connect(result.path / sqlite_backup.DATABASE_NAME)) as backup:
             self.assertEqual(backup.execute("SELECT count(*) FROM child").fetchone(), (1,))
 
     def test_manifest_has_no_source_path_or_database_content(self):
@@ -82,7 +82,7 @@ class SQLiteBackupTests(unittest.TestCase):
 
         def write_rows():
             try:
-                with sqlite3.connect(self.source, timeout=5) as writer:
+                with closing(sqlite3.connect(self.source, timeout=5)) as writer:
                     writer.execute("PRAGMA foreign_keys = ON")
                     identifier = 2
                     while not stop.is_set():
@@ -108,7 +108,7 @@ class SQLiteBackupTests(unittest.TestCase):
         self.assertFalse(worker.is_alive())
         self.assertEqual(errors, [])
         sqlite_backup.verify_backup(result.path)
-        with sqlite3.connect(result.path / sqlite_backup.DATABASE_NAME) as backup:
+        with closing(sqlite3.connect(result.path / sqlite_backup.DATABASE_NAME)) as backup:
             parents = backup.execute("SELECT count(*) FROM parent").fetchone()[0]
             children = backup.execute("SELECT count(*) FROM child").fetchone()[0]
         self.assertEqual(parents, children)
