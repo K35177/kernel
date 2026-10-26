@@ -33,3 +33,26 @@ database to a temporary file on the same filesystem. Set the required owner and
 mode, synchronize it, then atomically replace the live database. Start the API
 first and validate it before starting the Telegram bot. Practice this procedure
 with synthetic data; a backup is not proven until a restore has been tested.
+
+
+## Service identity and privilege boundaries
+
+The example `kernel-backup.service` starts Python directly as `User=kernel` and
+`Group=kernel`, with empty capability bounding and ambient sets. The backup
+helper uses that identity throughout; it does not start as root or perform a
+later `setuid` transition. Give this account access only to the designated
+source and backup directories. The example does not read the bot environment
+file or require access to root-only configuration.
+
+A design with a privileged parent and a child that changes identity has different
+requirements. Do not copy its capabilities or user directives into this example.
+Before activating a revised service, validate the exact unit with
+`systemd-analyze verify`, then exercise it on synthetic SQLite data under the
+same sandbox and systemd version as the target host. Verify the actual process
+UID/GID, supplementary groups, and effective, permitted, inheritable, and
+ambient capabilities. A capability bounding set alone does not prove that a
+process has that capability available for a privilege transition.
+
+Keep `NoNewPrivileges` and the other sandbox restrictions during validation.
+Check a fresh snapshot independently, including committed WAL transactions,
+and leave existing production data and completed backups intact.
