@@ -38,3 +38,13 @@ test('real React component contains confirmation with an explicit confirm and ca
   const html = renderToStaticMarkup(<App controller={controller} telegram={telegram} config={config} />);
   assert.ok(html.includes('<dialog')); assert.ok(html.includes('Подтвердить')); assert.ok(html.includes('Отмена'));
 });
+test('keyboard launch explains missing authorization and renders only safe diagnostics', async () => {
+  const telegram = adapter('', true); const controller = new AppController(api(), telegram, lifecycle);
+  await controller.refresh();
+  const html = renderToStaticMarkup(<App controller={controller} telegram={telegram} config={config} />);
+  assert.ok(html.includes('Telegram не передал данные для входа.'));
+  assert.ok(html.includes('init_data_missing'));
+  assert.ok(html.includes('Команды /start и /menu'));
+  assert.ok(!html.includes('Request access'));
+  assert.ok(!html.includes('access: granted'));
+});

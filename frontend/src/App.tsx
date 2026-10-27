@@ -31,12 +31,26 @@ export function App({ controller, telegram, config }: Props) {
     <section className="panel" aria-labelledby="root-title" aria-busy={pending}>
       <h2 id="root-title">Root Access</h2>
       {state.phase === 'loading' && <p role="status">Загрузка и проверка авторизации…</p>}
-      {(state.phase === 'outside-telegram' || state.phase === 'needs-launch') && <>
+      {state.phase === 'outside-telegram' && <>
         <p role="status">Open this application through kernel in Telegram.</p>
-        {state.phase === 'needs-launch' && <p className="muted">Для входа откройте Main Mini App или закройте окно
-          и используйте настроенную Web App кнопку в меню kernel.</p>}
       </>}
+      {state.phase === 'needs-launch' && <>
+        <p role="status">Telegram не передал данные для входа.</p>
+        <p className="muted">Кнопка на клавиатуре открывает визитку без авторизации. Для входа используйте
+          настроенную Main Mini App в профиле kernel или Web App-кнопку меню рядом с полем ввода.
+          Команды /start и /menu показывают ту же клавиатуру.</p>
+      </>}
+      {state.diagnostic?.code === 'sdk_unavailable' && <p className="muted">Telegram WebApp SDK недоступен.
+        Проверьте соединение и откройте приложение заново.</p>}
       {state.error && <p className="error" role="alert">{state.error}</p>}
+      {state.diagnostic && <details className="muted">
+        <summary>Диагностика входа</summary>
+        <p>Код: <code>{state.diagnostic.code}</code>; этап: {state.diagnostic.stage}.</p>
+        <p>Запрос: {state.diagnostic.endpoint}.</p>
+        <p>SDK: {state.diagnostic.sdkPresent ? 'доступен' : 'недоступен'};
+          данные входа: {state.diagnostic.initDataPresent ? 'получены' : 'отсутствуют'}.</p>
+        {state.diagnostic.httpStatus !== null && <p>HTTP: {state.diagnostic.httpStatus}</p>}
+      </details>}
       {needsLaunch && config.telegramAppUrl && <a className="button" href={config.telegramAppUrl}
         onClick={(event) => { if (telegram.openTelegramLink(config.telegramAppUrl!)) event.preventDefault(); }}>Открыть Mini App в Telegram</a>}
       {state.phase !== 'outside-telegram' && state.phase !== 'loading' && state.phase !== 'ready' &&

@@ -17,6 +17,7 @@ export function pending(): AccessStatus {
 }
 export function adapter(raw = 'test-proof', context = true): TelegramAdapter {
   return { initialize() {}, getInitData: () => raw, hasTelegramContext: () => context,
+    inspectLaunch: () => ({ sdkPresent: true, initDataPresent: Boolean(raw), telegramContextHint: context }),
     onActivated: () => () => {}, openTelegramLink: () => false, openExternalLink: () => false };
 }
 export function api(initial = status()): KernelAPI {

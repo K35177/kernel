@@ -3,6 +3,8 @@ import type { TelegramAdapter } from './telegram.ts';
 import type { AccessStatus, Profile } from './types.ts';
 import { ApiError, NetworkError, NoTelegramContextError, SessionExpiredError } from './types.ts';
 import { accessView } from './access-view.ts';
+import { loginDiagnostic } from './diagnostics.ts';
+import type { LoginDiagnostic } from './diagnostics.ts';
 
 export type Phase = 'loading' | 'outside-telegram' | 'needs-launch' | 'ready' | 'unauthorized' | 'session-expired' | 'network-error';
 export interface AppState {
@@ -13,6 +15,7 @@ export interface AppState {
   confirmation: boolean;
   notice: string | null;
   error: string | null;
+  diagnostic: LoginDiagnostic | null;
 }
 export interface Lifecycle {
   isVisible(): boolean;
@@ -27,7 +30,7 @@ export class AppController {
   private listeners = new Set<() => void>();
   private running = false;
   private state: AppState = {
-    phase: 'loading', user: null, access: null, busy: null, confirmation: false, notice: null, error: null,
+    phase: 'loading', user: null, access: null, busy: null, confirmation: false, notice: null, error: null, diagnostic: null,
   };
 
   constructor(api: KernelAPI, telegram: TelegramAdapter, lifecycle: Lifecycle) {
@@ -80,6 +83,7 @@ export class AppController {
       text = 'Не удалось загрузить данные приложения. Повторите попытку.';
     }
     this.update({ phase, busy: null, access: null, confirmation: false, error: text, notice: null,
+      diagnostic: loginDiagnostic(this.telegram.inspectLaunch(), error),
       ...(phase === 'session-expired' || phase === 'unauthorized' ? { user: null } : {}) });
   }
 
@@ -87,10 +91,11 @@ export class AppController {
     if (this.state.busy) return;
     if (!this.telegram.getInitData()) {
       this.update({ phase: this.telegram.hasTelegramContext() ? 'needs-launch' : 'outside-telegram',
-        busy: null, user: null, access: null, confirmation: false, error: null });
+        busy: null, user: null, access: null, confirmation: false, error: null,
+        diagnostic: loginDiagnostic(this.telegram.inspectLaunch()) });
       return;
     }
-    this.update({ busy: this.state.user ? 'refresh' : 'initial', error: null });
+    this.update({ busy: this.state.user ? 'refresh' : 'initial', error: null, diagnostic: null });
     try {
       if (!this.state.user) {
         const data = await this.api.initialize();

@@ -28,16 +28,38 @@ export interface SessionResponse {
   expires_in: number;
 }
 
+export type RequestStage = 'auth' | 'api';
+export type RequestEndpoint = 'telegram_auth' | 'me' | 'access_status' | 'access_request' | 'unknown';
 export class ApiError extends Error {
   readonly status: number;
-  constructor(status: number) {
+  readonly stage: RequestStage;
+  readonly endpoint: RequestEndpoint;
+  constructor(status: number, stage: RequestStage = 'api', endpoint: RequestEndpoint = 'unknown') {
     super('API request failed');
     this.name = 'ApiError';
     this.status = status;
+    this.stage = stage;
+    this.endpoint = endpoint;
+  }
+}
+export class ResponseFormatError extends ApiError {
+  readonly kind: 'invalid_json' | 'invalid_response';
+  readonly httpStatus: number | null;
+  constructor(stage: RequestStage, endpoint: RequestEndpoint, kind: 'invalid_json' | 'invalid_response', httpStatus: number | null = null) {
+    super(502, stage, endpoint);
+    this.name = 'ResponseFormatError';
+    this.kind = kind;
+    this.httpStatus = httpStatus;
   }
 }
 export class NetworkError extends Error {
-  constructor() { super('Network unavailable'); this.name = 'NetworkError'; }
+  readonly stage: RequestStage;
+  readonly endpoint: RequestEndpoint;
+  readonly timedOut: boolean;
+  constructor(stage: RequestStage = 'api', endpoint: RequestEndpoint = 'unknown', timedOut = false) {
+    super('Network unavailable'); this.name = 'NetworkError'; this.stage = stage;
+    this.endpoint = endpoint; this.timedOut = timedOut;
+  }
 }
 export class SessionExpiredError extends Error {
   constructor() { super('Reopen Mini App for fresh authorization'); this.name = 'SessionExpiredError'; }

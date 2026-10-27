@@ -1,9 +1,19 @@
 import { apiBase } from './links.ts';
 import {
-  ApiError, NetworkError, NoTelegramContextError, SessionExpiredError,
+  ApiError, NetworkError, NoTelegramContextError, SessionExpiredError, ResponseFormatError,
   parseAccess, parseProfile, parseRequest, parseSession,
 } from './types.ts';
-import type { AccessStatus, Profile, RequestResult } from './types.ts';
+import type { AccessStatus, Profile, RequestResult, RequestEndpoint } from './types.ts';
+
+function endpointFor(path: string): RequestEndpoint {
+  switch (path) {
+    case '/auth/telegram': return 'telegram_auth';
+    case '/me': return 'me';
+    case '/access/status': return 'access_status';
+    case '/access/request': return 'access_request';
+    default: return 'unknown';
+  }
+}
 
 export interface KernelAPI {
   initialize(): Promise<{ user: Profile; access: AccessStatus }>;
@@ -23,11 +33,14 @@ export class ApiClient implements KernelAPI {
   constructor(base: string, getInitData: () => string, fetcher: typeof fetch = fetch, now: () => number = Date.now) {
     this.base = apiBase(base);
     this.getInitData = getInitData;
-    this.fetcher = fetcher;
+    // Browser-native fetch rejects an ApiClient receiver before any request.
+    this.fetcher = fetcher.bind(globalThis);
     this.now = now;
   }
 
   private async json(path: string, method: string, token?: string, body?: unknown): Promise<unknown> {
+    const stage = path === '/auth/telegram' ? 'auth' : 'api';
+    const endpoint = endpointFor(path);
     const abort = new AbortController();
     const timeout = setTimeout(() => abort.abort(), 15000);
     try {
@@ -37,12 +50,26 @@ export class ApiClient implements KernelAPI {
           ...(token ? { Authorization: 'Bearer ' + token } : {}) },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
-      if (!response.ok) throw new ApiError(response.status);
-      try { return await response.json(); } catch { throw new ApiError(502); }
+      if (!response.ok) throw new ApiError(response.status, stage, endpoint);
+      try { return await response.json(); }
+      catch (error) {
+        if (error instanceof SyntaxError && !abort.signal.aborted) {
+          throw new ResponseFormatError(stage, endpoint, 'invalid_json', response.status);
+        }
+        throw error;
+      }
     } catch (error) {
       if (error instanceof ApiError) throw error;
-      throw new NetworkError();
+      throw new NetworkError(stage, endpoint, abort.signal.aborted);
     } finally { clearTimeout(timeout); }
+  }
+
+  private parse<T>(path: string, value: unknown, parser: (value: unknown) => T): T {
+    try { return parser(value); }
+    catch {
+      // Retain only the known request identity, never response fields or parser errors.
+      throw new ResponseFormatError(path === '/auth/telegram' ? 'auth' : 'api', endpointFor(path), 'invalid_response');
+    }
   }
 
   private async authorized(): Promise<string> {
@@ -55,7 +82,7 @@ export class ApiClient implements KernelAPI {
     if (proof === this.proofUsed) throw new SessionExpiredError();
     this.authPending = (async () => {
       try {
-        const data = parseSession(await this.json('/auth/telegram', 'POST', undefined, { initData: proof }));
+        const data = this.parse('/auth/telegram', await this.json('/auth/telegram', 'POST', undefined, { initData: proof }), parseSession);
         this.proofUsed = proof;
         this.session = { token: data.access_token, expiresAt: this.now() + data.expires_in * 1000 };
         return data.access_token;
@@ -86,9 +113,12 @@ export class ApiClient implements KernelAPI {
   }
 
   async initialize(): Promise<{ user: Profile; access: AccessStatus }> {
-    const [user, access] = await Promise.all([this.personal('/me'), this.personal('/access/status')]);
-    return { user: parseProfile(user), access: parseAccess(access) };
+    const [user, access] = await Promise.all([
+      this.personal('/me').then(value => this.parse('/me', value, parseProfile)),
+      this.personal('/access/status').then(value => this.parse('/access/status', value, parseAccess)),
+    ]);
+    return { user, access };
   }
-  async status(): Promise<AccessStatus> { return parseAccess(await this.personal('/access/status')); }
-  async requestAccess(): Promise<RequestResult> { return parseRequest(await this.personal('/access/request', 'POST')); }
+  async status(): Promise<AccessStatus> { return this.parse('/access/status', await this.personal('/access/status'), parseAccess); }
+  async requestAccess(): Promise<RequestResult> { return this.parse('/access/request', await this.personal('/access/request', 'POST'), parseRequest); }
 }

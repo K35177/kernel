@@ -15,14 +15,21 @@ export interface TelegramAdapter {
   initialize(): void;
   getInitData(): string;
   hasTelegramContext(): boolean;
+  inspectLaunch(): LaunchInspection;
   onActivated(callback: () => void): () => void;
   openTelegramLink(url: string): boolean;
   openExternalLink(url: string): boolean;
 }
+export interface LaunchInspection {
+  sdkPresent: boolean;
+  initDataPresent: boolean;
+  telegramContextHint: boolean;
+}
 
 export function createTelegramAdapter(provider: () => TelegramWebApp | undefined): TelegramAdapter {
   const inTelegram = (app: TelegramWebApp | undefined): boolean => Boolean(app
-    && (app.initData || (app.platform && app.platform !== 'unknown')));
+    && ((typeof app.initData === 'string' && app.initData.length > 0)
+      || (app.platform && app.platform !== 'unknown')));
   return {
     initialize() {
       try { provider()?.ready(); provider()?.expand(); } catch { /* Older clients still show the page. */ }
@@ -33,6 +40,12 @@ export function createTelegramAdapter(provider: () => TelegramWebApp | undefined
     },
     hasTelegramContext() {
       return inTelegram(provider());
+    },
+    inspectLaunch() {
+      const app = provider();
+      // Presence only. Do not return proof, platform, URL fragment, user or SDK objects.
+      return { sdkPresent: Boolean(app), initDataPresent: typeof app?.initData === 'string' && app.initData.length > 0,
+        telegramContextHint: inTelegram(app) };
     },
     onActivated(callback) {
       const app = provider();
